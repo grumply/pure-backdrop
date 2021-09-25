@@ -1,10 +1,10 @@
-{-# language NamedFieldPuns, LambdaCase, BlockArguments, TypeApplications, DataKinds, KindSignatures, RankNTypes, FlexibleInstances, OverloadedStrings, PostfixOperators, PolyKinds, ScopedTypeVariables, PartialTypeSignatures #-}
+{-# language NamedFieldPuns, LambdaCase, BlockArguments, TypeApplications, DataKinds, KindSignatures, RankNTypes, FlexibleInstances, OverloadedStrings, PostfixOperators, PolyKinds, ScopedTypeVariables, PartialTypeSignatures, FlexibleContexts, TypeFamilies, UndecidableInstances #-}
 module Pure.Backdrop 
   ( Backdrop(..)
   , defaultBackdrop
   ) where
 
-import Pure.Elm.Component
+import Pure.Elm.Component hiding (start,stop)
 import Pure.Data.Txt as Txt (tail)
 
 import Control.Monad (when)
@@ -17,8 +17,8 @@ data Backdrop (milliseconds :: Nat) = Backdrop
   , withBackdrop :: View -> View
   }
 
-defaultBackdrop :: Backdrop 300
-defaultBackdrop = Backdrop False
+defaultBackdrop :: (View -> View) -> Backdrop 300
+defaultBackdrop = Backdrop False 
 
 instance (Theme (Backdrop millis), KnownNat millis) => Component (Backdrop millis) where
   data Msg (Backdrop millis) = Startup | Shutdown
@@ -27,23 +27,23 @@ instance (Theme (Backdrop millis), KnownNat millis) => Component (Backdrop milli
   shutdown = [Shutdown]
 
   upon = \case
-    Startup -> startup
-    Shutdown -> shutdown
+    Startup -> start
+    Shutdown -> stop
 
   view Backdrop { withBackdrop } _ =
     withBackdrop (Portal (coerce body) 
       (Div <| Themed @(Backdrop millis)))
 
-startup :: Update n
-startup (Backdrop { lock },_) mdl = do
+start :: Update (Backdrop millis)
+start Backdrop { lock } mdl = do
   -- FIXME: if Backdrop changes while rendered, 
   -- the ModalOpen class might get left on <body>
   when lock do
     addThemeClass @ModalOpen (coerce body)
   pure mdl
 
-shutdown :: Update n
-shutdown (Backdrop { lock },_) mdl = do
+stop :: Update (Backdrop millis)
+stop Backdrop { lock } mdl = do
   when lock do
     removeThemeClass @ModalOpen (coerce body)
   pure mdl
