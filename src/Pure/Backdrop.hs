@@ -1,7 +1,10 @@
 {-# language NamedFieldPuns, LambdaCase, BlockArguments, TypeApplications, DataKinds, KindSignatures, RankNTypes, FlexibleInstances, OverloadedStrings, PostfixOperators, PolyKinds, ScopedTypeVariables, PartialTypeSignatures #-}
-module Pure.Backdrop (Backdrop(..),backdrop,defaultBackdrop) where
+module Pure.Backdrop 
+  ( Backdrop(..)
+  , defaultBackdrop
+  ) where
 
-import Pure.Elm
+import Pure.Elm.Component
 import Pure.Data.Txt as Txt (tail)
 
 import Control.Monad (when)
@@ -11,25 +14,25 @@ import GHC.TypeLits (KnownNat,Nat,natVal)
 
 data Backdrop (milliseconds :: Nat) = Backdrop
   { lock :: Bool
+  , withBackdrop :: View -> View
   }
 
 defaultBackdrop :: Backdrop 300
 defaultBackdrop = Backdrop False
 
-data Model = Model
-data Msg = Startup | Shutdown
+instance (Theme (Backdrop millis), KnownNat millis) => Component (Backdrop millis) where
+  data Msg (Backdrop millis) = Startup | Shutdown
 
-{-# INLINE backdrop #-}
-backdrop :: KnownNat n => Backdrop n -> (View -> View) -> View
-backdrop bd f = run (Applet [Startup] [] [Shutdown] (pure Model) upon view) (bd,f)
+  startup = [Startup]
+  shutdown = [Shutdown]
 
-type Update n = (Elm Msg, KnownNat n) => (Backdrop n,View -> View) -> Model -> IO Model
+  upon = \case
+    Startup -> startup
+    Shutdown -> shutdown
 
-{-# INLINE upon #-}
-upon :: Msg -> Update n
-upon = \case
-  Startup  -> startup
-  Shutdown -> shutdown
+  view Backdrop { withBackdrop } _ =
+    withBackdrop (Portal (coerce body) 
+      (Div <| Themed @(Backdrop millis)))
 
 startup :: Update n
 startup (Backdrop { lock },_) mdl = do
@@ -44,10 +47,6 @@ shutdown (Backdrop { lock },_) mdl = do
   when lock do
     removeThemeClass @ModalOpen (coerce body)
   pure mdl
-
-{-# INLINE view #-}
-view :: forall n. KnownNat n => (Backdrop n,View -> View) -> _ -> View
-view (_,v) _ = v (Portal (coerce body) (Div <| Themed @(Backdrop n)))
 
 data ModalOpen
 instance Theme ModalOpen where
